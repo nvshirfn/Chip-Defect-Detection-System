@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['DIE_BROKEN', 'DIE_CRACK', 'DIE_INK', 'NO_DIE']
+
+roboflow:
+  workspace: nishs-workspace
+  project: chipdetection-wltnz
+  version: 8
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/nishs-workspace/chipdetection-wltnz/dataset/8

@@ -1,0 +1,28 @@
+yolo_env/
+__pycache__/
+*.pyc
+.ultralytics/
+.agents/
+.codex/
+
+web_runs/
+runs/evaluation_no_enhancement/
+
+# Keep final model folders if you want friends to run the demo.
+# Delete or comment these lines if you want to push all training runs.
+runs/baseline_no_enhancement/crack_enhanced/
+runs/baseline_no_enhancement/crack_enhanced_v2/
+runs/baseline_no_enhancement/crack_enhanced_python_v1/
+runs/baseline_no_enhancement/ink_enhanced_v1/
+
+# Local scratch/demo folders
+tak download/
+untukTest/
+
+# Large raw source datasets not needed for the current YOLO demo.
+DatasetA-Handcrafted-generated/
+DatasetA-Real/
+DatasetA-Semantic-generated/
+DatasetB-Handcrafted-generated/
+DatasetB-Real/
+DatasetB-Semantic-generated/

@@ -13,10 +13,6 @@ from werkzeug.utils import secure_filename
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "yolov8n_512" / "weights" / "best.pt"
-CRACK_NO_ENHANCE_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "crack_no_enhancement" / "weights" / "best.pt"
-CRACK_ENHANCED_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "crack_enhanced_v3" / "weights" / "best.pt"
-INK_NO_ENHANCE_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "ink_no_enhancement" / "weights" / "best.pt"
-INK_ENHANCED_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "ink_enhanced_v2" / "weights" / "best.pt"
 UPLOAD_DIR = ROOT / "web_runs" / "uploads"
 RESULT_DIR = ROOT / "web_runs" / "results"
 EVAL_DIR = ROOT / "web_runs" / "evaluations"
@@ -29,10 +25,124 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 model: YOLO | None = None
-crack_no_enhance_model: YOLO | None = None
-crack_enhanced_model: YOLO | None = None
-ink_no_enhance_model: YOLO | None = None
-ink_enhanced_model: YOLO | None = None
+_model_cache: dict[str, YOLO] = {}
+
+
+def _run_dir(name: str) -> Path:
+    return ROOT / "runs" / "baseline_no_enhancement" / name / "weights" / "best.pt"
+
+
+def enhance_crack_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Could not read image: {image_path}")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.medianBlur(gray, 3)
+    clahe = cv2.createCLAHE(clipLimit=0.6, tileGridSize=(8, 8))
+    contrast = clahe.apply(denoised)
+
+    paths = {
+        "Grayscale Image": output_dir / "01_grayscale.jpg",
+        "Median Noise Reduction": output_dir / "02_median.jpg",
+        "Light CLAHE Contrast Enhancement": output_dir / "03_final.jpg",
+    }
+    cv2.imwrite(str(paths["Grayscale Image"]), gray)
+    cv2.imwrite(str(paths["Median Noise Reduction"]), denoised)
+    cv2.imwrite(str(paths["Light CLAHE Contrast Enhancement"]), contrast)
+    return {label: relative_web_path(path) for label, path in paths.items()}
+
+
+def enhance_ink_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Could not read image: {image_path}")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.medianBlur(gray, 3)
+    adjusted = cv2.normalize(denoised, None, 0, 255, cv2.NORM_MINMAX)
+
+    paths = {
+        "Grayscale Image": output_dir / "01_grayscale.jpg",
+        "Median Noise Reduction": output_dir / "02_median.jpg",
+        "Contrast Adjustment": output_dir / "03_final.jpg",
+    }
+    cv2.imwrite(str(paths["Grayscale Image"]), gray)
+    cv2.imwrite(str(paths["Median Noise Reduction"]), denoised)
+    cv2.imwrite(str(paths["Contrast Adjustment"]), adjusted)
+    return {label: relative_web_path(path) for label, path in paths.items()}
+
+
+def enhance_broken_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Could not read image: {image_path}")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.medianBlur(gray, 3)
+    clahe = cv2.createCLAHE(clipLimit=0.4, tileGridSize=(8, 8))
+    contrast = clahe.apply(denoised)
+    blurred = cv2.GaussianBlur(contrast, (0, 0), sigmaX=1.5)
+    sharpened = cv2.addWeighted(contrast, 1.15, blurred, -0.15, 0)
+
+    paths = {
+        "Grayscale Image": output_dir / "01_grayscale.jpg",
+        "Median Noise Reduction": output_dir / "02_median.jpg",
+        "Mild CLAHE Contrast": output_dir / "03_clahe.jpg",
+        "Light Unsharp Masking": output_dir / "04_final.jpg",
+    }
+    cv2.imwrite(str(paths["Grayscale Image"]), gray)
+    cv2.imwrite(str(paths["Median Noise Reduction"]), denoised)
+    cv2.imwrite(str(paths["Mild CLAHE Contrast"]), contrast)
+    cv2.imwrite(str(paths["Light Unsharp Masking"]), sharpened)
+    return {label: relative_web_path(path) for label, path in paths.items()}
+
+
+# Single source of truth for every defect class the app can detect/compare.
+# NO_DIE has no enhanced_model/enhanced_data/steps_fn because it never got an
+# enhancement pipeline (already ~perfect on raw images), so the UI and
+# backend both fall back to "no enhancement available" for it.
+CLASS_CONFIG = {
+    "DIE_CRACK": {
+        "no_enhance_model": _run_dir("crack_no_enhancement"),
+        "enhanced_model": _run_dir("crack_enhanced_v3"),
+        "no_enhance_data": ROOT / "single_class_raw" / "DIE_CRACK" / "data.yaml",
+        "enhanced_data": ROOT / "crack_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
+        "enhancement_name": "MATLAB CLAHE (V3)",
+        "steps_fn": enhance_crack_steps,
+        "final_step_key": "Light CLAHE Contrast Enhancement",
+    },
+    "DIE_INK": {
+        "no_enhance_model": _run_dir("ink_no_enhancement"),
+        "enhanced_model": _run_dir("ink_enhanced_v2"),
+        "no_enhance_data": ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
+        "enhanced_data": ROOT / "ink_enhanced_matlab" / "DIE_INK" / "data.yaml",
+        "enhancement_name": "MATLAB Contrast Adjust (V2)",
+        "steps_fn": enhance_ink_steps,
+        "final_step_key": "Contrast Adjustment",
+    },
+    "DIE_BROKEN": {
+        "no_enhance_model": _run_dir("broken_no_enhancement"),
+        "enhanced_model": _run_dir("broken_enhanced_python"),
+        "no_enhance_data": ROOT / "single_class_raw" / "DIE_BROKEN" / "data.yaml",
+        "enhanced_data": ROOT / "broken_enhanced_python" / "DIE_BROKEN" / "data.yaml",
+        "enhancement_name": "Python CLAHE + Unsharp Mask",
+        "steps_fn": enhance_broken_steps,
+        "final_step_key": "Light Unsharp Masking",
+    },
+    "NO_DIE": {
+        "no_enhance_model": _run_dir("no_die_no_enhancement"),
+        "enhanced_model": None,
+        "no_enhance_data": ROOT / "single_class_raw" / "NO_DIE" / "data.yaml",
+        "enhanced_data": None,
+        "enhancement_name": None,
+        "steps_fn": None,
+        "final_step_key": None,
+    },
+}
 
 
 def get_model() -> YOLO:
@@ -44,40 +154,18 @@ def get_model() -> YOLO:
     return model
 
 
-def get_crack_no_enhance_model() -> YOLO:
-    global crack_no_enhance_model
-    if crack_no_enhance_model is None:
-        if not CRACK_NO_ENHANCE_MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model not found: {CRACK_NO_ENHANCE_MODEL_PATH}")
-        crack_no_enhance_model = YOLO(str(CRACK_NO_ENHANCE_MODEL_PATH))
-    return crack_no_enhance_model
+def get_class_model(defect_class: str, variant: str) -> YOLO:
+    config = CLASS_CONFIG[defect_class]
+    path = config[f"{variant}_model"]
+    if path is None:
+        raise FileNotFoundError(f"No {variant.replace('_', ' ')} model is available for {defect_class}.")
 
-
-def get_crack_enhanced_model() -> YOLO:
-    global crack_enhanced_model
-    if crack_enhanced_model is None:
-        if not CRACK_ENHANCED_MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model not found: {CRACK_ENHANCED_MODEL_PATH}")
-        crack_enhanced_model = YOLO(str(CRACK_ENHANCED_MODEL_PATH))
-    return crack_enhanced_model
-
-
-def get_ink_no_enhance_model() -> YOLO:
-    global ink_no_enhance_model
-    if ink_no_enhance_model is None:
-        if not INK_NO_ENHANCE_MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model not found: {INK_NO_ENHANCE_MODEL_PATH}")
-        ink_no_enhance_model = YOLO(str(INK_NO_ENHANCE_MODEL_PATH))
-    return ink_no_enhance_model
-
-
-def get_ink_enhanced_model() -> YOLO:
-    global ink_enhanced_model
-    if ink_enhanced_model is None:
-        if not INK_ENHANCED_MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model not found: {INK_ENHANCED_MODEL_PATH}")
-        ink_enhanced_model = YOLO(str(INK_ENHANCED_MODEL_PATH))
-    return ink_enhanced_model
+    cache_key = f"{defect_class}:{variant}"
+    if cache_key not in _model_cache:
+        if not path.exists():
+            raise FileNotFoundError(f"Model not found: {path}")
+        _model_cache[cache_key] = YOLO(str(path))
+    return _model_cache[cache_key]
 
 
 def allowed_file(filename: str) -> bool:
@@ -106,55 +194,6 @@ def extract_detections(results) -> list[dict[str, object]]:
             }
         )
     return detections
-
-
-def save_crack_enhancement_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError(f"Could not read image: {image_path}")
-
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    denoised = cv2.medianBlur(gray, 3)
-    clahe = cv2.createCLAHE(clipLimit=0.6, tileGridSize=(8, 8))
-    contrast = clahe.apply(denoised)
-
-    paths = {
-        "Grayscale Image": output_dir / "01_grayscale.jpg",
-        "Median Noise Reduction": output_dir / "02_median.jpg",
-        "Light CLAHE Contrast Enhancement": output_dir / "03_clahe.jpg",
-    }
-
-    cv2.imwrite(str(paths["Grayscale Image"]), gray)
-    cv2.imwrite(str(paths["Median Noise Reduction"]), denoised)
-    cv2.imwrite(str(paths["Light CLAHE Contrast Enhancement"]), contrast)
-
-    return {label: relative_web_path(path) for label, path in paths.items()}
-
-
-def save_ink_enhancement_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError(f"Could not read image: {image_path}")
-
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    denoised = cv2.medianBlur(gray, 3)
-    adjusted = cv2.normalize(denoised, None, 0, 255, cv2.NORM_MINMAX)
-
-    paths = {
-        "Grayscale Image": output_dir / "01_grayscale.jpg",
-        "Median Noise Reduction": output_dir / "02_median.jpg",
-        "Contrast Adjustment": output_dir / "03_imadjust.jpg",
-    }
-
-    cv2.imwrite(str(paths["Grayscale Image"]), gray)
-    cv2.imwrite(str(paths["Median Noise Reduction"]), denoised)
-    cv2.imwrite(str(paths["Contrast Adjustment"]), adjusted)
-
-    return {label: relative_web_path(path) for label, path in paths.items()}
 
 
 def predict_to_saved_image(yolo_model: YOLO, source_path: Path, run_name: str, confidence: float) -> dict[str, object]:
@@ -232,7 +271,7 @@ def summarize_metrics(metrics) -> dict[str, float]:
     }
 
 
-def run_single_crack_evaluation(yolo_model: YOLO, data_path: Path, run_name: str, split: str) -> dict[str, object]:
+def run_single_evaluation(yolo_model: YOLO, data_path: Path, run_name: str, split: str) -> dict[str, object]:
     metrics = yolo_model.val(
         data=str(data_path),
         split=split,
@@ -258,60 +297,63 @@ def run_single_crack_evaluation(yolo_model: YOLO, data_path: Path, run_name: str
     }
 
 
-def run_crack_comparison_evaluation(split: str) -> dict[str, object]:
-    no_enhancement = run_single_crack_evaluation(
-        get_crack_no_enhance_model(),
-        ROOT / "single_class_raw" / "DIE_CRACK" / "data.yaml",
-        f"crack_no_enhancement_{split}",
-        split,
-    )
-    enhanced = run_single_crack_evaluation(
-        get_crack_enhanced_model(),
-        ROOT / "crack_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
-        f"crack_enhanced_v3_{split}",
+def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, object]:
+    config = CLASS_CONFIG[defect_class]
+    prefix = defect_class.lower()
+
+    no_enhancement = run_single_evaluation(
+        get_class_model(defect_class, "no_enhance"),
+        config["no_enhance_data"],
+        f"{prefix}_no_enhancement_{split}",
         split,
     )
 
-    differences = {}
-    for key in no_enhancement["raw"]:
-        differences[key] = f"{enhanced['raw'][key] - no_enhancement['raw'][key]:+.4f}"
+    if config["enhanced_data"] is None:
+        return {
+            "defect_class": defect_class,
+            "split": split,
+            "no_enhancement": no_enhancement,
+            "enhanced": None,
+            "differences": None,
+            "enhancement_name": None,
+        }
+
+    enhanced = run_single_evaluation(
+        get_class_model(defect_class, "enhanced"),
+        config["enhanced_data"],
+        f"{prefix}_enhanced_{split}",
+        split,
+    )
+    differences = {
+        key: f"{enhanced['raw'][key] - no_enhancement['raw'][key]:+.4f}" for key in no_enhancement["raw"]
+    }
 
     return {
+        "defect_class": defect_class,
         "split": split,
         "no_enhancement": no_enhancement,
         "enhanced": enhanced,
         "differences": differences,
+        "enhancement_name": config["enhancement_name"],
     }
 
 
-def run_ink_comparison_evaluation(split: str) -> dict[str, object]:
-    no_enhancement = run_single_crack_evaluation(
-        get_ink_no_enhance_model(),
-        ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
-        f"ink_no_enhancement_{split}",
-        split,
-    )
-    enhanced = run_single_crack_evaluation(
-        get_ink_enhanced_model(),
-        ROOT / "ink_enhanced_matlab" / "DIE_INK" / "data.yaml",
-        f"ink_enhanced_v2_{split}",
-        split,
-    )
-
-    differences = {}
-    for key in no_enhancement["raw"]:
-        differences[key] = f"{enhanced['raw'][key] - no_enhancement['raw'][key]:+.4f}"
-
+def class_model_paths(defect_class: str) -> dict[str, str]:
+    config = CLASS_CONFIG[defect_class]
+    no_enhance_path = config["no_enhance_model"]
+    enhanced_path = config["enhanced_model"]
     return {
-        "split": split,
-        "no_enhancement": no_enhancement,
-        "enhanced": enhanced,
-        "differences": differences,
+        "no_enhancement": relative_web_path(no_enhance_path) if no_enhance_path.exists() else str(no_enhance_path),
+        "enhanced": (relative_web_path(enhanced_path) if enhanced_path.exists() else str(enhanced_path))
+        if enhanced_path is not None
+        else None,
+        "enhancement_name": config["enhancement_name"],
     }
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    class_keys = list(CLASS_CONFIG.keys())
     context = {
         "model_path": relative_web_path(MODEL_PATH) if MODEL_PATH.exists() else str(MODEL_PATH),
         "error": None,
@@ -320,30 +362,18 @@ def index():
         "detections": [],
         "confidence": 0.25,
         "evaluation": None,
-        "crack_compare": None,
-        "crack_evaluation": None,
-        "ink_compare": None,
-        "ink_evaluation": None,
-        "crack_models": {
-            "no_enhancement": relative_web_path(CRACK_NO_ENHANCE_MODEL_PATH)
-            if CRACK_NO_ENHANCE_MODEL_PATH.exists()
-            else str(CRACK_NO_ENHANCE_MODEL_PATH),
-            "enhanced": relative_web_path(CRACK_ENHANCED_MODEL_PATH)
-            if CRACK_ENHANCED_MODEL_PATH.exists()
-            else str(CRACK_ENHANCED_MODEL_PATH),
-        },
-        "ink_models": {
-            "no_enhancement": relative_web_path(INK_NO_ENHANCE_MODEL_PATH)
-            if INK_NO_ENHANCE_MODEL_PATH.exists()
-            else str(INK_NO_ENHANCE_MODEL_PATH),
-            "enhanced": relative_web_path(INK_ENHANCED_MODEL_PATH)
-            if INK_ENHANCED_MODEL_PATH.exists()
-            else str(INK_ENHANCED_MODEL_PATH),
-        },
+        "class_keys": class_keys,
+        "selected_class": class_keys[0],
+        "class_models": {key: class_model_paths(key) for key in class_keys},
+        "class_compare": None,
+        "class_evaluation": None,
     }
 
     if request.method == "POST":
         action = request.form.get("action", "detect")
+        defect_class = request.form.get("defect_class", class_keys[0])
+        if defect_class in class_keys:
+            context["selected_class"] = defect_class
 
         if action == "evaluate":
             split = request.form.get("split", "test")
@@ -354,26 +384,14 @@ def index():
             context["evaluation"] = run_evaluation(split)
             return render_template("index.html", **context)
 
-        if action == "evaluate_ink":
+        if action == "evaluate_class":
             split = request.form.get("split", "test")
             if split not in {"val", "test"}:
                 context["error"] = "Choose either validation or test split."
                 return render_template("index.html", **context)
 
             try:
-                context["ink_evaluation"] = run_ink_comparison_evaluation(split)
-            except FileNotFoundError as exc:
-                context["error"] = str(exc)
-            return render_template("index.html", **context)
-
-        if action == "evaluate_crack":
-            split = request.form.get("split", "test")
-            if split not in {"val", "test"}:
-                context["error"] = "Choose either validation or test split."
-                return render_template("index.html", **context)
-
-            try:
-                context["crack_evaluation"] = run_crack_comparison_evaluation(split)
+                context["class_evaluation"] = run_class_comparison_evaluation(defect_class, split)
             except FileNotFoundError as exc:
                 context["error"] = str(exc)
             return render_template("index.html", **context)
@@ -398,93 +416,57 @@ def index():
         upload_path = UPLOAD_DIR / f"{upload_id}_{safe_name}"
         file.save(upload_path)
 
-        if action == "compare_crack":
-            use_already_enhanced = request.form.get("already_enhanced") == "1"
+        if action == "compare_class":
+            config = CLASS_CONFIG[defect_class]
+            has_enhanced = config["enhanced_model"] is not None
+            use_already_enhanced = has_enhanced and request.form.get("already_enhanced") == "1"
 
-            if use_already_enhanced:
-                steps = {
-                    "MATLAB-Enhanced Input": relative_web_path(upload_path),
-                }
-                enhanced_source = upload_path
-            else:
-                step_dir = STEP_DIR / upload_id
-                steps = save_crack_enhancement_steps(upload_path, step_dir)
-                enhanced_source = step_dir / "03_clahe.jpg"
+            steps: dict[str, str] = {}
+            enhanced_source = upload_path
+
+            if has_enhanced:
+                if use_already_enhanced:
+                    steps = {"Pre-Enhanced Input": relative_web_path(upload_path)}
+                else:
+                    step_dir = STEP_DIR / upload_id
+                    steps = config["steps_fn"](upload_path, step_dir)
+                    final_label = config["final_step_key"]
+                    enhanced_source = step_dir / Path(steps[final_label]).name
 
             no_enhance_result = {"image": None, "detections": [], "missing": None}
-            enhanced_result = {"image": None, "detections": [], "missing": None}
-
             try:
                 no_enhance_result = predict_to_saved_image(
-                    get_crack_no_enhance_model(),
+                    get_class_model(defect_class, "no_enhance"),
                     upload_path,
-                    f"{upload_id}_crack_no_enhancement",
+                    f"{upload_id}_{defect_class.lower()}_no_enhancement",
                     confidence,
                 )
             except FileNotFoundError as exc:
                 no_enhance_result["missing"] = str(exc)
 
-            try:
-                enhanced_result = predict_to_saved_image(
-                    get_crack_enhanced_model(),
-                    enhanced_source,
-                    f"{upload_id}_crack_enhanced",
-                    confidence,
-                )
-            except FileNotFoundError as exc:
-                enhanced_result["missing"] = str(exc)
+            enhanced_result = None
+            if has_enhanced:
+                enhanced_result = {"image": None, "detections": [], "missing": None}
+                try:
+                    enhanced_result = predict_to_saved_image(
+                        get_class_model(defect_class, "enhanced"),
+                        enhanced_source,
+                        f"{upload_id}_{defect_class.lower()}_enhanced",
+                        confidence,
+                    )
+                except FileNotFoundError as exc:
+                    enhanced_result["missing"] = str(exc)
 
-            context["crack_compare"] = {
+            context["class_compare"] = {
+                "defect_class": defect_class,
+                "enhancement_name": config["enhancement_name"],
+                "final_step_label": config["final_step_key"],
                 "original_image": relative_web_path(upload_path),
                 "steps": steps,
                 "no_enhancement": no_enhance_result,
                 "enhanced": enhanced_result,
                 "already_enhanced": use_already_enhanced,
-            }
-            return render_template("index.html", **context)
-
-        if action == "compare_ink":
-            use_already_enhanced = request.form.get("already_enhanced") == "1"
-
-            if use_already_enhanced:
-                steps = {
-                    "MATLAB-Enhanced Ink Input": relative_web_path(upload_path),
-                }
-                enhanced_source = upload_path
-            else:
-                step_dir = STEP_DIR / upload_id
-                steps = save_ink_enhancement_steps(upload_path, step_dir)
-                enhanced_source = step_dir / "03_imadjust.jpg"
-
-            no_enhance_result = {"image": None, "detections": [], "missing": None}
-            enhanced_result = {"image": None, "detections": [], "missing": None}
-
-            try:
-                no_enhance_result = predict_to_saved_image(
-                    get_ink_no_enhance_model(),
-                    upload_path,
-                    f"{upload_id}_ink_no_enhancement",
-                    confidence,
-                )
-            except FileNotFoundError as exc:
-                no_enhance_result["missing"] = str(exc)
-
-            try:
-                enhanced_result = predict_to_saved_image(
-                    get_ink_enhanced_model(),
-                    enhanced_source,
-                    f"{upload_id}_ink_enhanced",
-                    confidence,
-                )
-            except FileNotFoundError as exc:
-                enhanced_result["missing"] = str(exc)
-
-            context["ink_compare"] = {
-                "original_image": relative_web_path(upload_path),
-                "steps": steps,
-                "no_enhancement": no_enhance_result,
-                "enhanced": enhanced_result,
-                "already_enhanced": use_already_enhanced,
+                "has_enhanced": has_enhanced,
             }
             return render_template("index.html", **context)
 

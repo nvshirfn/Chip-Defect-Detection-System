@@ -1,0 +1,7 @@
+path: ink_enhanced_matlab/DIE_INK
+train: train/images
+val: valid/images
+test: test/images
+nc: 1
+names:
+  - DIE_INK

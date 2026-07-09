@@ -261,13 +261,13 @@ def run_single_crack_evaluation(yolo_model: YOLO, data_path: Path, run_name: str
 def run_crack_comparison_evaluation(split: str) -> dict[str, object]:
     no_enhancement = run_single_crack_evaluation(
         get_crack_no_enhance_model(),
-        ROOT / "ChipDetection_single_class" / "DIE_CRACK" / "data.yaml",
+        ROOT / "single_class_raw" / "DIE_CRACK" / "data.yaml",
         f"crack_no_enhancement_{split}",
         split,
     )
     enhanced = run_single_crack_evaluation(
         get_crack_enhanced_model(),
-        ROOT / "ChipDetection_single_class_enhanced_v3" / "DIE_CRACK" / "data.yaml",
+        ROOT / "crack_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
         f"crack_enhanced_v3_{split}",
         split,
     )
@@ -287,13 +287,13 @@ def run_crack_comparison_evaluation(split: str) -> dict[str, object]:
 def run_ink_comparison_evaluation(split: str) -> dict[str, object]:
     no_enhancement = run_single_crack_evaluation(
         get_ink_no_enhance_model(),
-        ROOT / "ChipDetection_single_class" / "DIE_INK" / "data.yaml",
+        ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
         f"ink_no_enhancement_{split}",
         split,
     )
     enhanced = run_single_crack_evaluation(
         get_ink_enhanced_model(),
-        ROOT / "ChipDetection_single_class_enhanced_ink_v2" / "DIE_INK" / "data.yaml",
+        ROOT / "ink_enhanced_matlab" / "DIE_INK" / "data.yaml",
         f"ink_enhanced_v2_{split}",
         split,
     )

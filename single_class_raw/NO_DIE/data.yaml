@@ -1,0 +1,8 @@
+path: single_class_raw/NO_DIE
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names:
+  - NO_DIE

@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         description="Create one single-class YOLO dataset per defect type."
     )
     parser.add_argument("--source", default="ChipDetection.v8i.yolov8", help="Original YOLO dataset folder.")
-    parser.add_argument("--output", default="ChipDetection_single_class", help="Output folder.")
+    parser.add_argument("--output", default="single_class_raw", help="Output folder.")
     parser.add_argument(
         "--include-backgrounds",
         action="store_true",

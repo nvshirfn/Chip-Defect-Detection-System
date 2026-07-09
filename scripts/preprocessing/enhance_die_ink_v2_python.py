@@ -7,8 +7,8 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = ROOT / "ChipDetection_single_class" / "DIE_INK"
-OUTPUT_ROOT = ROOT / "ChipDetection_single_class_enhanced_ink_v2_python" / "DIE_INK"
+SOURCE_ROOT = ROOT / "single_class_raw" / "DIE_INK"
+OUTPUT_ROOT = ROOT / "ink_enhanced_python" / "DIE_INK"
 SPLITS = ("train", "valid", "test")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 

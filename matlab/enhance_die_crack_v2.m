@@ -5,8 +5,8 @@
 
 clear; clc;
 
-srcRoot = fullfile(pwd, "ChipDetection_single_class", "DIE_CRACK");
-dstRoot = fullfile(pwd, "ChipDetection_single_class_enhanced_v2", "DIE_CRACK");
+srcRoot = fullfile(pwd, "single_class_raw", "DIE_CRACK");
+dstRoot = fullfile(pwd, "crack_enhanced_matlab_v2", "DIE_CRACK");
 
 splits = ["train", "valid", "test"];
 

@@ -7,8 +7,8 @@ import cv2
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = ROOT / "ChipDetection_single_class" / "DIE_CRACK"
-OUTPUT_ROOT = ROOT / "ChipDetection_single_class_enhanced_python_v1" / "DIE_CRACK"
+SOURCE_ROOT = ROOT / "single_class_raw" / "DIE_CRACK"
+OUTPUT_ROOT = ROOT / "crack_enhanced_python_v1" / "DIE_CRACK"
 SPLITS = ("train", "valid", "test")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 

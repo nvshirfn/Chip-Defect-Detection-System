@@ -9,8 +9,8 @@ from skimage.exposure import equalize_adapthist
 from skimage.util import img_as_ubyte
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = ROOT / "ChipDetection_single_class" / "DIE_CRACK"
-OUTPUT_ROOT = ROOT / "ChipDetection_single_class_enhanced_v3_python" / "DIE_CRACK"
+SOURCE_ROOT = ROOT / "single_class_raw" / "DIE_CRACK"
+OUTPUT_ROOT = ROOT / "crack_enhanced_python" / "DIE_CRACK"
 SPLITS = ("train", "valid", "test")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 

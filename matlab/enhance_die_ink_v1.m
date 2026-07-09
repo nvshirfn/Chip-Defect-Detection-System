@@ -5,8 +5,8 @@
 
 clear; clc;
 
-srcRoot = fullfile(pwd, "ChipDetection_single_class", "DIE_INK");
-dstRoot = fullfile(pwd, "ChipDetection_single_class_enhanced_ink_v1", "DIE_INK");
+srcRoot = fullfile(pwd, "single_class_raw", "DIE_INK");
+dstRoot = fullfile(pwd, "ink_enhanced_matlab_v1", "DIE_INK");
 
 splits = ["train", "valid", "test"];
 

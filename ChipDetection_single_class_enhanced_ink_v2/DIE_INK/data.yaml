@@ -1,4 +1,4 @@
-path: C:/Users/HP/Downloads/CSC566 IMAGE PROCESSING/rosak kot github/Chip-surface-defect-dataset-master/ChipDetection_single_class_enhanced_ink_v2/DIE_INK
+path: ChipDetection_single_class_enhanced_ink_v2/DIE_INK
 train: train/images
 val: valid/images
 test: test/images

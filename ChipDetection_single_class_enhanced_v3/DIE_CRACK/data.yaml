@@ -1,4 +1,4 @@
-path: C:/Users/HP/Downloads/CSC566 IMAGE PROCESSING/rosak kot github/Chip-surface-defect-dataset-master/ChipDetection_single_class_enhanced_v3/DIE_CRACK
+path: ChipDetection_single_class_enhanced_v3/DIE_CRACK
 train: train/images
 val: valid/images
 test: test/images

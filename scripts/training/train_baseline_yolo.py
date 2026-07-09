@@ -10,7 +10,7 @@ def parse_args() -> argparse.Namespace:
         description="Train a baseline YOLO defect detector with no image enhancement."
     )
     parser.add_argument("--data", default="baseline_data.yaml", help="Dataset YAML path.")
-    parser.add_argument("--model", default="yolov8n.pt", help="YOLO model to train.")
+    parser.add_argument("--model", default="models/yolov8n.pt", help="YOLO model to train.")
     parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size.")
     parser.add_argument("--batch", type=int, default=8, help="Batch size.")
@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[2]
     os.environ.setdefault("YOLO_CONFIG_DIR", str(root / ".ultralytics"))
 
     from ultralytics import YOLO

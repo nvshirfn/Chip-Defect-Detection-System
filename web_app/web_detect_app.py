@@ -11,7 +11,7 @@ from ultralytics import YOLO
 from werkzeug.utils import secure_filename
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "yolov8n_512" / "weights" / "best.pt"
 CRACK_NO_ENHANCE_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "crack_no_enhancement" / "weights" / "best.pt"
 CRACK_ENHANCED_MODEL_PATH = ROOT / "runs" / "baseline_no_enhancement" / "crack_enhanced_v3" / "weights" / "best.pt"

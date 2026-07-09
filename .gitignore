@@ -26,3 +26,6 @@ DatasetA-Semantic-generated/
 DatasetB-Handcrafted-generated/
 DatasetB-Real/
 DatasetB-Semantic-generated/
+
+# Its own separate git repo (has its own .git) -- never add as a nested repo.
+chip-surface-defect-dataset/

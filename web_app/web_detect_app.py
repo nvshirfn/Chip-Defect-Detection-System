@@ -64,12 +64,14 @@ def enhance_ink_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
     denoised = cv2.medianBlur(gray, 3)
     adjusted = cv2.normalize(denoised, None, 0, 255, cv2.NORM_MINMAX)
 
-    # Bottom-hat isolates dark blob-like features (ink stains), mirroring
-    # enhance_die_ink_v1.m's imbothat + imsubtract + imadjust pipeline.
+    # Bottom-hat isolates dark blob-like features (ink stains), then light
+    # CLAHE sharpens local contrast on the isolated result -- mirroring
+    # enhance_die_ink_v3.m's imbothat + imsubtract + adapthisteq pipeline.
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (17, 17))
     dark_features = cv2.morphologyEx(adjusted, cv2.MORPH_BLACKHAT, kernel)
     subtracted = cv2.subtract(adjusted, dark_features)
-    final = cv2.normalize(subtracted, None, 0, 255, cv2.NORM_MINMAX)
+    clahe = cv2.createCLAHE(clipLimit=0.4, tileGridSize=(8, 8))
+    final = clahe.apply(subtracted)
 
     paths = {
         "Grayscale Image": output_dir / "01_grayscale.jpg",
@@ -128,10 +130,10 @@ CLASS_CONFIG = {
     },
     "DIE_INK": {
         "no_enhance_model": _run_dir("ink_no_enhancement"),
-        "enhanced_model": _run_dir("ink_enhanced_matlab_v1"),
+        "enhanced_model": _run_dir("ink_enhanced_matlab_v3"),
         "no_enhance_data": ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
-        "enhanced_data": ROOT / "ink_enhanced_matlab_v1" / "DIE_INK" / "data.yaml",
-        "enhancement_name": "MATLAB Bottom-Hat (V1)",
+        "enhanced_data": ROOT / "ink_enhanced_matlab_v3" / "DIE_INK" / "data.yaml",
+        "enhancement_name": "MATLAB Bottom-Hat + CLAHE (V3)",
         "steps_fn": enhance_ink_steps,
         "final_step_key": "Final Enhanced Image",
     },

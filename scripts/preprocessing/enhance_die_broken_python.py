@@ -17,9 +17,9 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 # (crack) or dark blobs (ink), so this pipeline emphasizes edge/boundary
 # definition instead of just local contrast:
 # grayscale -> median denoise -> mild CLAHE -> light unsharp masking.
-CLIP_LIMIT = 0.01
-SHARPEN_SIGMA = 1.0
-SHARPEN_AMOUNT = 0.4
+CLIP_LIMIT = 0.006
+SHARPEN_SIGMA = 1.5
+SHARPEN_AMOUNT = 0.15
 
 
 def enhance_broken_image(image_path: Path):

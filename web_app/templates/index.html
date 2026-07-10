@@ -372,34 +372,50 @@
 
         <section class="card" id="compare">
             <h2>Per-Class Enhancement Comparison</h2>
-            <div class="note">Pick a defect class to compare its no-enhancement model against its enhanced model (where one exists).</div>
+            <div class="note">
+                Pick a defect class and dataset version to compare its no-enhancement model against its enhanced model
+                (where one exists). "Original" is the first dataset built (synthetic + real mixed across train/valid/test,
+                no background images). "Properly-Split" fixes that: synthetic images are confined to train only, valid/test
+                are 100% real, and background (non-defective) images were added.
+            </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Class</th>
-                        <th>No-Enhancement Model</th>
-                        <th>Enhanced Model</th>
-                        <th>Enhancement Technique</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for key in class_keys %}
+            {% for split_key in split_keys %}
+                <h3 class="subsection-title" style="margin-top: 18px;">{{ split_labels[split_key] }}</h3>
+                <table>
+                    <thead>
                         <tr>
-                            <td>{{ key }}</td>
-                            <td>{{ class_models[key].no_enhancement }}</td>
-                            <td>{{ class_models[key].enhanced or "Not available" }}</td>
-                            <td>{{ class_models[key].enhancement_name or "—" }}</td>
+                            <th>Class</th>
+                            <th>No-Enhancement Model</th>
+                            <th>Enhanced Model</th>
+                            <th>Enhancement Technique</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for key in class_keys %}
+                            <tr>
+                                <td>{{ key }}</td>
+                                <td>{{ class_models[split_key][key].no_enhancement }}</td>
+                                <td>{{ class_models[split_key][key].enhanced or "Not available" }}</td>
+                                <td>{{ class_models[split_key][key].enhancement_name or "—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endfor %}
 
             <hr class="divider">
 
             <h3 class="subsection-title">Detection Comparison (upload one image)</h3>
             <form class="compare" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="compare_class">
+                <label>
+                    Dataset Version
+                    <select name="dataset_split">
+                        {% for split_key in split_keys %}
+                            <option value="{{ split_key }}" {% if split_key == selected_split %}selected{% endif %}>{{ split_labels[split_key] }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
                 <label>
                     Defect Class
                     <select name="defect_class">
@@ -431,6 +447,14 @@
             <form class="compare" method="post">
                 <input type="hidden" name="action" value="evaluate_class">
                 <label>
+                    Dataset Version
+                    <select name="dataset_split">
+                        {% for split_key in split_keys %}
+                            <option value="{{ split_key }}" {% if split_key == selected_split %}selected{% endif %}>{{ split_labels[split_key] }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
                     Defect Class
                     <select name="defect_class">
                         {% for key in class_keys %}
@@ -453,7 +477,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th colspan="4">{{ class_evaluation.defect_class }} Overall Accuracy: {{ class_evaluation.split }} ({{ class_evaluation.enhancement_name }})</th>
+                                <th colspan="4">{{ class_evaluation.defect_class }} Overall Accuracy: {{ class_evaluation.split }} -- {{ split_labels[class_evaluation.dataset_split] }} ({{ class_evaluation.enhancement_name }})</th>
                             </tr>
                             <tr>
                                 <th>Metric</th>
@@ -501,7 +525,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th colspan="2">{{ class_evaluation.defect_class }} Accuracy (No Enhancement): {{ class_evaluation.split }}</th>
+                                <th colspan="2">{{ class_evaluation.defect_class }} Accuracy (No Enhancement): {{ class_evaluation.split }} -- {{ split_labels[class_evaluation.dataset_split] }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -530,7 +554,7 @@
             {% endif %}
 
             {% if class_compare %}
-                <h2 class="section-title">{{ class_compare.defect_class }} Detection Comparison</h2>
+                <h2 class="section-title">{{ class_compare.defect_class }} Detection Comparison -- {{ split_labels[class_compare.dataset_split] }}</h2>
 
                 {% if class_compare.has_enhanced %}
                     <section class="results">

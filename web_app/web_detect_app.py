@@ -114,46 +114,96 @@ def enhance_broken_steps(image_path: Path, output_dir: Path) -> dict[str, str]:
     return {label: relative_web_path(path) for label, path in paths.items()}
 
 
-# Single source of truth for every defect class the app can detect/compare.
-# NO_DIE has no enhanced_model/enhanced_data/steps_fn because it never got an
-# enhancement pipeline (already ~perfect on raw images), so the UI and
-# backend both fall back to "no enhancement available" for it.
-CLASS_CONFIG = {
-    "DIE_CRACK": {
-        "no_enhance_model": _run_dir("crack_no_enhancement"),
-        "enhanced_model": _run_dir("crack_enhanced_v3"),
-        "no_enhance_data": ROOT / "single_class_raw" / "DIE_CRACK" / "data.yaml",
-        "enhanced_data": ROOT / "crack_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
-        "enhancement_name": "MATLAB CLAHE (V3)",
-        "steps_fn": enhance_crack_steps,
-        "final_step_key": "Light CLAHE Contrast Enhancement",
+# Two parallel configs, one per dataset split version, each mapping every
+# defect class to its models/data/enhancement info. "old" = single_class_raw
+# (synthetic + real mixed across train/valid/test, no background images).
+# "new" = single_class_v2 (synthetic confined to train only, real-only
+# valid/test, background images added). Kept side by side rather than
+# replacing "old" so both remain comparable in the UI. NO_DIE has no
+# enhanced_model/enhanced_data/steps_fn in either split because it never got
+# an enhancement pipeline (already ~perfect on raw images).
+SPLIT_CONFIGS = {
+    "old": {
+        "label": "Original (single_class_raw)",
+        "classes": {
+            "DIE_CRACK": {
+                "no_enhance_model": _run_dir("crack_no_enhancement"),
+                "enhanced_model": _run_dir("crack_enhanced_v3"),
+                "no_enhance_data": ROOT / "single_class_raw" / "DIE_CRACK" / "data.yaml",
+                "enhanced_data": ROOT / "crack_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
+                "enhancement_name": "MATLAB CLAHE (V3)",
+                "steps_fn": enhance_crack_steps,
+                "final_step_key": "Light CLAHE Contrast Enhancement",
+            },
+            "DIE_INK": {
+                "no_enhance_model": _run_dir("ink_no_enhancement"),
+                "enhanced_model": _run_dir("ink_enhanced_matlab_v3"),
+                "no_enhance_data": ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
+                "enhanced_data": ROOT / "ink_enhanced_matlab_v3" / "DIE_INK" / "data.yaml",
+                "enhancement_name": "MATLAB Bottom-Hat + CLAHE (V3)",
+                "steps_fn": enhance_ink_steps,
+                "final_step_key": "Final Enhanced Image",
+            },
+            "DIE_BROKEN": {
+                "no_enhance_model": _run_dir("broken_no_enhancement"),
+                "enhanced_model": _run_dir("broken_enhanced_python"),
+                "no_enhance_data": ROOT / "single_class_raw" / "DIE_BROKEN" / "data.yaml",
+                "enhanced_data": ROOT / "broken_enhanced_python" / "DIE_BROKEN" / "data.yaml",
+                "enhancement_name": "Python CLAHE + Unsharp Mask",
+                "steps_fn": enhance_broken_steps,
+                "final_step_key": "Light Unsharp Masking",
+            },
+            "NO_DIE": {
+                "no_enhance_model": _run_dir("no_die_no_enhancement"),
+                "enhanced_model": None,
+                "no_enhance_data": ROOT / "single_class_raw" / "NO_DIE" / "data.yaml",
+                "enhanced_data": None,
+                "enhancement_name": None,
+                "steps_fn": None,
+                "final_step_key": None,
+            },
+        },
     },
-    "DIE_INK": {
-        "no_enhance_model": _run_dir("ink_no_enhancement"),
-        "enhanced_model": _run_dir("ink_enhanced_matlab_v3"),
-        "no_enhance_data": ROOT / "single_class_raw" / "DIE_INK" / "data.yaml",
-        "enhanced_data": ROOT / "ink_enhanced_matlab_v3" / "DIE_INK" / "data.yaml",
-        "enhancement_name": "MATLAB Bottom-Hat + CLAHE (V3)",
-        "steps_fn": enhance_ink_steps,
-        "final_step_key": "Final Enhanced Image",
-    },
-    "DIE_BROKEN": {
-        "no_enhance_model": _run_dir("broken_no_enhancement"),
-        "enhanced_model": _run_dir("broken_enhanced_python"),
-        "no_enhance_data": ROOT / "single_class_raw" / "DIE_BROKEN" / "data.yaml",
-        "enhanced_data": ROOT / "broken_enhanced_python" / "DIE_BROKEN" / "data.yaml",
-        "enhancement_name": "Python CLAHE + Unsharp Mask",
-        "steps_fn": enhance_broken_steps,
-        "final_step_key": "Light Unsharp Masking",
-    },
-    "NO_DIE": {
-        "no_enhance_model": _run_dir("no_die_no_enhancement"),
-        "enhanced_model": None,
-        "no_enhance_data": ROOT / "single_class_raw" / "NO_DIE" / "data.yaml",
-        "enhanced_data": None,
-        "enhancement_name": None,
-        "steps_fn": None,
-        "final_step_key": None,
+    "new": {
+        "label": "Properly-Split (single_class_v2)",
+        "classes": {
+            "DIE_CRACK": {
+                "no_enhance_model": _run_dir("crack_v2split_no_enhancement"),
+                "enhanced_model": _run_dir("crack_v2split_enhanced_matlab"),
+                "no_enhance_data": ROOT / "single_class_v2" / "DIE_CRACK" / "data.yaml",
+                "enhanced_data": ROOT / "crack_v2split_enhanced_matlab" / "DIE_CRACK" / "data.yaml",
+                "enhancement_name": "MATLAB CLAHE (V2-split)",
+                "steps_fn": enhance_crack_steps,
+                "final_step_key": "Light CLAHE Contrast Enhancement",
+            },
+            "DIE_INK": {
+                "no_enhance_model": _run_dir("ink_v2split_no_enhancement"),
+                "enhanced_model": _run_dir("ink_v2split_enhanced_matlab"),
+                "no_enhance_data": ROOT / "single_class_v2" / "DIE_INK" / "data.yaml",
+                "enhanced_data": ROOT / "ink_v2split_enhanced_matlab" / "DIE_INK" / "data.yaml",
+                "enhancement_name": "MATLAB Bottom-Hat + CLAHE (V2-split)",
+                "steps_fn": enhance_ink_steps,
+                "final_step_key": "Final Enhanced Image",
+            },
+            "DIE_BROKEN": {
+                "no_enhance_model": _run_dir("broken_v2split_no_enhancement"),
+                "enhanced_model": _run_dir("broken_v2split_enhanced_matlab"),
+                "no_enhance_data": ROOT / "single_class_v2" / "DIE_BROKEN" / "data.yaml",
+                "enhanced_data": ROOT / "broken_v2split_enhanced_matlab" / "DIE_BROKEN" / "data.yaml",
+                "enhancement_name": "MATLAB CLAHE + Unsharp Mask (V2-split)",
+                "steps_fn": enhance_broken_steps,
+                "final_step_key": "Light Unsharp Masking",
+            },
+            "NO_DIE": {
+                "no_enhance_model": _run_dir("no_die_v2split_no_enhancement"),
+                "enhanced_model": None,
+                "no_enhance_data": ROOT / "single_class_v2" / "NO_DIE" / "data.yaml",
+                "enhanced_data": None,
+                "enhancement_name": None,
+                "steps_fn": None,
+                "final_step_key": None,
+            },
+        },
     },
 }
 
@@ -167,13 +217,13 @@ def get_model() -> YOLO:
     return model
 
 
-def get_class_model(defect_class: str, variant: str) -> YOLO:
-    config = CLASS_CONFIG[defect_class]
+def get_class_model(split_key: str, defect_class: str, variant: str) -> YOLO:
+    config = SPLIT_CONFIGS[split_key]["classes"][defect_class]
     path = config[f"{variant}_model"]
     if path is None:
         raise FileNotFoundError(f"No {variant.replace('_', ' ')} model is available for {defect_class}.")
 
-    cache_key = f"{defect_class}:{variant}"
+    cache_key = f"{split_key}:{defect_class}:{variant}"
     if cache_key not in _model_cache:
         if not path.exists():
             raise FileNotFoundError(f"Model not found: {path}")
@@ -310,12 +360,12 @@ def run_single_evaluation(yolo_model: YOLO, data_path: Path, run_name: str, spli
     }
 
 
-def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, object]:
-    config = CLASS_CONFIG[defect_class]
-    prefix = defect_class.lower()
+def run_class_comparison_evaluation(split_key: str, defect_class: str, split: str) -> dict[str, object]:
+    config = SPLIT_CONFIGS[split_key]["classes"][defect_class]
+    prefix = f"{split_key}_{defect_class.lower()}"
 
     no_enhancement = run_single_evaluation(
-        get_class_model(defect_class, "no_enhance"),
+        get_class_model(split_key, defect_class, "no_enhance"),
         config["no_enhance_data"],
         f"{prefix}_no_enhancement_{split}",
         split,
@@ -324,6 +374,7 @@ def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, 
     if config["enhanced_data"] is None:
         return {
             "defect_class": defect_class,
+            "dataset_split": split_key,
             "split": split,
             "no_enhancement": no_enhancement,
             "enhanced": None,
@@ -332,7 +383,7 @@ def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, 
         }
 
     enhanced = run_single_evaluation(
-        get_class_model(defect_class, "enhanced"),
+        get_class_model(split_key, defect_class, "enhanced"),
         config["enhanced_data"],
         f"{prefix}_enhanced_{split}",
         split,
@@ -343,6 +394,7 @@ def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, 
 
     return {
         "defect_class": defect_class,
+        "dataset_split": split_key,
         "split": split,
         "no_enhancement": no_enhancement,
         "enhanced": enhanced,
@@ -351,8 +403,8 @@ def run_class_comparison_evaluation(defect_class: str, split: str) -> dict[str, 
     }
 
 
-def class_model_paths(defect_class: str) -> dict[str, str]:
-    config = CLASS_CONFIG[defect_class]
+def class_model_paths(split_key: str, defect_class: str) -> dict[str, str]:
+    config = SPLIT_CONFIGS[split_key]["classes"][defect_class]
     no_enhance_path = config["no_enhance_model"]
     enhanced_path = config["enhanced_model"]
     return {
@@ -366,7 +418,8 @@ def class_model_paths(defect_class: str) -> dict[str, str]:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    class_keys = list(CLASS_CONFIG.keys())
+    class_keys = list(SPLIT_CONFIGS["old"]["classes"].keys())
+    split_keys = list(SPLIT_CONFIGS.keys())
     context = {
         "model_path": relative_web_path(MODEL_PATH) if MODEL_PATH.exists() else str(MODEL_PATH),
         "error": None,
@@ -376,8 +429,13 @@ def index():
         "confidence": 0.25,
         "evaluation": None,
         "class_keys": class_keys,
+        "split_keys": split_keys,
+        "split_labels": {key: cfg["label"] for key, cfg in SPLIT_CONFIGS.items()},
         "selected_class": class_keys[0],
-        "class_models": {key: class_model_paths(key) for key in class_keys},
+        "selected_split": split_keys[0],
+        "class_models": {
+            split_key: {key: class_model_paths(split_key, key) for key in class_keys} for split_key in split_keys
+        },
         "class_compare": None,
         "class_evaluation": None,
     }
@@ -387,6 +445,9 @@ def index():
         defect_class = request.form.get("defect_class", class_keys[0])
         if defect_class in class_keys:
             context["selected_class"] = defect_class
+        dataset_split = request.form.get("dataset_split", split_keys[0])
+        if dataset_split in split_keys:
+            context["selected_split"] = dataset_split
 
         if action == "evaluate":
             split = request.form.get("split", "test")
@@ -404,7 +465,7 @@ def index():
                 return render_template("index.html", **context)
 
             try:
-                context["class_evaluation"] = run_class_comparison_evaluation(defect_class, split)
+                context["class_evaluation"] = run_class_comparison_evaluation(dataset_split, defect_class, split)
             except FileNotFoundError as exc:
                 context["error"] = str(exc)
             return render_template("index.html", **context)
@@ -430,7 +491,7 @@ def index():
         file.save(upload_path)
 
         if action == "compare_class":
-            config = CLASS_CONFIG[defect_class]
+            config = SPLIT_CONFIGS[dataset_split]["classes"][defect_class]
             has_enhanced = config["enhanced_model"] is not None
             use_already_enhanced = has_enhanced and request.form.get("already_enhanced") == "1"
 
@@ -449,9 +510,9 @@ def index():
             no_enhance_result = {"image": None, "detections": [], "missing": None}
             try:
                 no_enhance_result = predict_to_saved_image(
-                    get_class_model(defect_class, "no_enhance"),
+                    get_class_model(dataset_split, defect_class, "no_enhance"),
                     upload_path,
-                    f"{upload_id}_{defect_class.lower()}_no_enhancement",
+                    f"{upload_id}_{dataset_split}_{defect_class.lower()}_no_enhancement",
                     confidence,
                 )
             except FileNotFoundError as exc:
@@ -462,9 +523,9 @@ def index():
                 enhanced_result = {"image": None, "detections": [], "missing": None}
                 try:
                     enhanced_result = predict_to_saved_image(
-                        get_class_model(defect_class, "enhanced"),
+                        get_class_model(dataset_split, defect_class, "enhanced"),
                         enhanced_source,
-                        f"{upload_id}_{defect_class.lower()}_enhanced",
+                        f"{upload_id}_{dataset_split}_{defect_class.lower()}_enhanced",
                         confidence,
                     )
                 except FileNotFoundError as exc:
@@ -472,6 +533,7 @@ def index():
 
             context["class_compare"] = {
                 "defect_class": defect_class,
+                "dataset_split": dataset_split,
                 "enhancement_name": config["enhancement_name"],
                 "final_step_label": config["final_step_key"],
                 "original_image": relative_web_path(upload_path),

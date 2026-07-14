@@ -4,6 +4,7 @@ __pycache__/
 .ultralytics/
 .agents/
 .codex/
+Ultralytics/
 
 web_runs/
 runs/evaluation_no_enhancement/
